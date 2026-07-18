@@ -53,3 +53,4 @@ Join our community of developers creating universal apps.
 npm install expo-local-authentication @expo/vector-icons
 
 npm install @react-native-async-storage/async-storage
+npx expo install expo-location

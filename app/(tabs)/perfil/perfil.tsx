@@ -1,20 +1,22 @@
+// app/(tabs)/perfil/index.tsx
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React from "react";
 import {
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Switch,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { useTheme } from "../context/ThemeContext";
+import { useTheme } from "../../context/ThemeContext";
 
 export default function PerfilScreen() {
   const { theme, isDarkMode, toggleTheme } = useTheme();
-
   const styles = getStyles(theme);
 
   return (
@@ -84,7 +86,69 @@ export default function PerfilScreen() {
             GENERAL
           </Text>
 
-          {/* ... Opciones del menú ... */}
+          <TouchableOpacity
+            style={[
+              styles.menuItem,
+              {
+                backgroundColor: theme.surfaceElevated,
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.menuIconContainer,
+                { backgroundColor: theme.primaryLight },
+              ]}
+            >
+              <Ionicons name="person-outline" size={22} color={theme.primary} />
+            </View>
+            <Text style={[styles.menuText, { color: theme.text }]}>
+              Información Personal
+            </Text>
+            <Ionicons
+              name="chevron-forward-outline"
+              size={20}
+              color={theme.textTertiary}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.menuItem,
+              {
+                backgroundColor: theme.surfaceElevated,
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.menuIconContainer,
+                { backgroundColor: theme.primaryLight },
+              ]}
+            >
+              <Ionicons name="time-outline" size={22} color={theme.primary} />
+            </View>
+            <Text style={[styles.menuText, { color: theme.text }]}>
+              Historial de Checadas
+            </Text>
+            <Ionicons
+              name="chevron-forward-outline"
+              size={20}
+              color={theme.textTertiary}
+            />
+          </TouchableOpacity>
+
+          <Text
+            style={[
+              styles.menuSectionTitle,
+              { color: theme.textSecondary, marginTop: 24 },
+            ]}
+          >
+            CONFIGURACIÓN
+          </Text>
+
           <View
             style={[
               styles.menuItem,
@@ -120,13 +184,60 @@ export default function PerfilScreen() {
               ios_backgroundColor={theme.border}
             />
           </View>
+
+          {/* Cerrar Sesión */}
+          <TouchableOpacity
+            style={[
+              styles.menuItem,
+              styles.logoutMenuItem,
+              {
+                backgroundColor: theme.dangerLight,
+                borderColor: theme.danger,
+                marginTop: 16,
+              },
+            ]}
+            onPress={() => {
+              Alert.alert(
+                "Cerrar Sesión",
+                "¿Estás seguro de que deseas cerrar sesión?",
+                [
+                  { text: "Cancelar", style: "cancel" },
+                  {
+                    text: "Cerrar Sesión",
+                    style: "destructive",
+                    onPress: () => router.replace("/(auth)/login"),
+                  },
+                ],
+              );
+            }}
+          >
+            <Ionicons name="log-out-outline" size={22} color={theme.danger} />
+            <Text
+              style={[
+                styles.menuText,
+                styles.logoutText,
+                { color: theme.danger },
+              ]}
+            >
+              Cerrar Sesión
+            </Text>
+            <Ionicons
+              name="chevron-forward-outline"
+              size={20}
+              color={theme.danger}
+              style={{ opacity: 0.5 }}
+            />
+          </TouchableOpacity>
+
+          <Text style={[styles.versionText, { color: theme.textTertiary }]}>
+            Versión 1.0.0
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-// Estilos dinámicos basados en el tema
 const getStyles = (colors: any) =>
   StyleSheet.create({
     container: {

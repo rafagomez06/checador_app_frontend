@@ -88,7 +88,10 @@ export default function LoginScreen() {
   // Login con usuario y contraseña
   const handleLogin = async () => {
     if (!username || !password) {
-      Alert.alert("Error", "Por favor ingresa usuario y contraseña");
+      Alert.alert(
+        "Error",
+        "Por favor ingrese el usuario y contraseña, intente de nuevo.",
+      );
       return;
     }
 
@@ -99,10 +102,10 @@ export default function LoginScreen() {
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
       // Simulación de éxito
-      if (username === "test" && password === "1234") {
-        router.replace("/(tabs)/perfil");
+      if (username === "test" && password === "123") {
+        router.replace("/(tabs)/perfil/perfil");
       } else {
-        Alert.alert("Error", "Credenciales incorrectas");
+        Alert.alert("Error", "Credenciales incorrectas, intente de nuevo.");
       }
     } catch (error) {
       Alert.alert("Error", "Ocurrió un error al iniciar sesión");
@@ -124,7 +127,7 @@ export default function LoginScreen() {
       if (result.success) {
         setIsLoading(true);
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        router.replace("/(tabs)/perfil");
+        router.replace("/(tabs)/perfil/perfil");
         setIsLoading(false);
       } else {
         if (result.error === "user_cancel") {
@@ -354,7 +357,7 @@ const getStyles = (colors: any) =>
       letterSpacing: 1,
     },
     appSubtitle: {
-      fontSize: 14,
+      fontSize: 18,
       color: colors.textSecondary,
       marginTop: 4,
       letterSpacing: 2,

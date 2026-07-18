@@ -1,10 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, {
-    createContext,
-    ReactNode,
-    useContext,
-    useEffect,
-    useState,
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useState,
 } from "react";
 import { useColorScheme } from "react-native";
 
@@ -17,7 +17,7 @@ export const COLORS = {
     primary: "#4A90E2",
     primaryLight: "#EBF3FE",
     text: "#1A1A2E",
-    textSecondary: "#6B7280",
+    textSecondary: "#565c68",
     textTertiary: "#9CA3AF",
     border: "#E5E7EB",
     shadow: "rgba(0, 0, 0, 0.05)",
