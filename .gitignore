@@ -1,0 +1,36 @@
+# Expo
+.expo/
+dist/
+web-build
+.claude/
+
+# Dependencias
+node_modules/
+
+# Directorios nativos generados por Expo Prebuild (opcional)
+# Descomenta estas líneas si usas el flujo gestionado donde /ios y /android se regeneran automáticamente
+# /ios
+# /android
+
+# Archivos de configuración local y variables de entorno
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs de error de paquetes
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Sistema Operativo y Editores
+.DS_Store
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
