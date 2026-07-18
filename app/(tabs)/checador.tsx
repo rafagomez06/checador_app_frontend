@@ -1,7 +1,7 @@
 // app/(tabs)/checador/index.tsx
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   RefreshControl,
@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useTheme } from "../../context/ThemeContext";
+import { useTheme } from "../context/ThemeContext";
 
 type CheckType =
   | "inicio_jornada"
@@ -27,10 +27,37 @@ export default function ChecadorScreen() {
     type: CheckType;
     time: string;
   } | null>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
   const { theme, isDarkMode } = useTheme();
 
   const styles = getStyles(theme);
+  // Timer para actualizar la hora cada segundo
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
 
+    return () => clearInterval(timer);
+  }, []);
+
+  // Formatear la hora
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString("es-MX", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    });
+  };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString("es-MX", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
   const checkOptions = [
     {
       id: "inicio_jornada" as CheckType,
@@ -77,6 +104,8 @@ export default function ChecadorScreen() {
         accuracy: Location.Accuracy.High,
       });
 
+      console.log("### DATOS OBTENIDOS DE LOCATION:");
+      console.log("Ubicación completa:", JSON.stringify(location, null, 2));
       return {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
@@ -92,6 +121,9 @@ export default function ChecadorScreen() {
 
     try {
       const location = await getLocation();
+
+      console.log("Ubicacion dispositivo: ", location);
+
       if (!location) {
         setIsLoading(false);
         return;
@@ -204,20 +236,17 @@ export default function ChecadorScreen() {
 
         {/* Contenedor horario */}
         <View
-          style={[styles.profileContainer, { backgroundColor: theme.surface }]}
+          style={[styles.timerContainer, { backgroundColor: theme.surface }]}
         >
-          <View
-            style={[
-              styles.avatarContainer,
-              { backgroundColor: theme.primaryLight },
-            ]}
-          >
-            <Ionicons
-              name="person-circle-outline"
-              size={80}
-              color={theme.primary}
-            />
-          </View>
+          {/* Hora actual */}
+          <Text style={[styles.currentTime, { color: theme.text }]}>
+            {formatTime(currentTime)}
+          </Text>
+
+          {/* Fecha actual */}
+          <Text style={[styles.currentDate, { color: theme.textSecondary }]}>
+            {formatDate(currentTime)}
+          </Text>
         </View>
 
         {/* Greeting */}
@@ -385,11 +414,11 @@ const getStyles = (colors: any) =>
       marginTop: 12,
       fontSize: 16,
     },
-    profileContainer: {
+    timerContainer: {
       alignItems: "center",
       paddingVertical: 30,
-      marginHorizontal: 20,
-      marginTop: 20,
+      marginHorizontal: 3,
+      marginTop: 10,
       borderRadius: 20,
       backgroundColor: colors.surface,
       shadowColor: colors.shadow,
@@ -397,5 +426,18 @@ const getStyles = (colors: any) =>
       shadowOpacity: 0.1,
       shadowRadius: 8,
       elevation: 4,
+    },
+    currentTime: {
+      fontSize: 48,
+      fontWeight: "bold",
+      color: colors.text,
+      letterSpacing: 2,
+      marginBottom: 10,
+    },
+    currentDate: {
+      fontSize: 22,
+      color: colors.textSecondary,
+      marginBottom: 1,
+      textTransform: "capitalize",
     },
   });

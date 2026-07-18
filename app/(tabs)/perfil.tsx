@@ -13,7 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useTheme } from "../../context/ThemeContext";
+import { useTheme } from "../context/ThemeContext";
 
 export default function PerfilScreen() {
   const { theme, isDarkMode, toggleTheme } = useTheme();

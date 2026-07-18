@@ -7,6 +7,7 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Image,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -103,7 +104,7 @@ export default function LoginScreen() {
 
       // Simulación de éxito
       if (username === "test" && password === "123") {
-        router.replace("/(tabs)/perfil/perfil");
+        router.replace("/(tabs)/checador");
       } else {
         Alert.alert("Error", "Credenciales incorrectas, intente de nuevo.");
       }
@@ -127,7 +128,7 @@ export default function LoginScreen() {
       if (result.success) {
         setIsLoading(true);
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        router.replace("/(tabs)/perfil/perfil");
+        router.replace("/(tabs)/checador");
         setIsLoading(false);
       } else {
         if (result.error === "user_cancel") {
@@ -164,7 +165,12 @@ export default function LoginScreen() {
         {/* Logo o Icono */}
         <View style={styles.logoContainer}>
           <View style={[styles.logoCircle, { borderColor: theme.primary }]}>
-            <Ionicons name="time-outline" size={60} color={theme.primary} />
+            {/* <Ionicons name="time-outline" size={60} color={theme.primary} /> */}
+            <Image
+              source={require("../../assets/images/primos_logo.png")}
+              style={{ width: 113, height: 113 }}
+              resizeMode="contain"
+            />
           </View>
           <Text style={[styles.appName, { color: theme.text }]}>
             Checador App

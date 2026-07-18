@@ -14,7 +14,7 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: theme.tabBarBackground,
           borderTopColor: theme.tabBarBorder,
-          height: 60,
+          height: 90,
           paddingBottom: 8,
           paddingTop: 4,
           borderTopWidth: 1,
@@ -38,9 +38,9 @@ export default function TabsLayout() {
     >
       {/* Tab 1: Checador */}
       <Tabs.Screen
-        name="aaaa"
+        name="checador"
         options={{
-          title: "aaaa",
+          title: "Checador",
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? "time" : "time-outline"}
