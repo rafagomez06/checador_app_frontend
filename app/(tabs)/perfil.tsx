@@ -71,10 +71,10 @@ export default function PerfilScreen() {
           <View
             style={[styles.userBadge, { backgroundColor: theme.primaryLight }]}
           >
-            <Ionicons name="checkmark-circle" size={16} color={theme.primary} />
-            <Text style={[styles.badgeText, { color: theme.primary }]}>
+            {/*<Ionicons name="checkmark-circle" size={16} color={theme.primary} />
+             <Text style={[styles.badgeText, { color: theme.primary }]}>
               Verificado
-            </Text>
+            </Text> */}
           </View>
         </View>
 

@@ -225,7 +225,6 @@ export default function LoginScreen() {
               autoCorrect={false}
             />
           </View>
-
           {/* Campo Contraseña */}
           <View
             style={[
@@ -310,15 +309,6 @@ export default function LoginScreen() {
               </Text>
             </TouchableOpacity>
           )}
-
-          {/* Enlace Olvidé contraseña */}
-          {/* <TouchableOpacity style={styles.forgotPassword}>
-            <Text
-              style={[styles.forgotPasswordText, { color: theme.textTertiary }]}
-            >
-              ¿Olvidaste tu contraseña?
-            </Text>
-          </TouchableOpacity> */}
         </View>
 
         {/* Versión */}

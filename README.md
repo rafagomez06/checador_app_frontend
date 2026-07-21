@@ -54,3 +54,6 @@ npm install expo-local-authentication @expo/vector-icons
 
 npm install @react-native-async-storage/async-storage
 npx expo install expo-location
+
+Iconos
+https://icons.expo.fyi/Index
