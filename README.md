@@ -50,13 +50,22 @@ Join our community of developers creating universal apps.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
 
 --considerar librerias:
+npx expo install axios
 npm install expo-local-authentication @expo/vector-icons
 
 npm install @react-native-async-storage/async-storage
 npx expo install expo-location
+
+--tanstak query
+npx expo install @tanstack/react-query
 
 Iconos
 https://icons.expo.fyi/Index
 
 --horarios
 npm install dayjs
+--base de datos local SQLITE
+npx expo install expo-sqlite
+
+--validar conexion offline
+npx expo install @react-native-community/netinfo

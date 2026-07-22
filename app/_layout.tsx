@@ -1,3 +1,4 @@
+// app/_layout.tsx
 import { SplashScreen, Stack } from "expo-router";
 import { useEffect } from "react";
 import { ThemeProvider } from "./context/ThemeContext";

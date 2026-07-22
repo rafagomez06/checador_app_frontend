@@ -1,8 +1,8 @@
 // app/(tabs)/checador/index.tsx
 import LoadingOverlay from "@/components/LoadingOverlay";
-import { useChecador } from "@/hooks/useChecador";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import NetInfo from "@react-native-community/netinfo";
 import * as Location from "expo-location";
 import React, { useEffect, useState } from "react";
 import {
@@ -16,7 +16,11 @@ import {
   View,
 } from "react-native";
 import { getApiUrl } from "../../config/configApiURL";
+import { STATUS_CODES } from "../../constants/messages";
+import { checadasLocalDB } from "../../database/database";
+import { obtenerFechaLocal } from "../../helpers/helpers";
 import { useTheme } from "../context/ThemeContext";
+
 //Tipos checadas
 type CheckType =
   | "inicio_jornada"
@@ -32,6 +36,14 @@ type flujoEstado =
   | "comida_terminada" // Después de fin comida
   | "jornada_terminada" // Después de fin jornada
   | "bloqueado"; // Flujo completado
+
+// Mapeo de tipos de checada
+const TIPO_CHECADA_MAP = {
+  inicio_jornada: 1,
+  inicio_comida: 2,
+  fin_comida: 3,
+  fin_jornada: 4,
+};
 
 export default function ChecadorScreen() {
   const [isLoading, setIsLoading] = useState(false);
@@ -50,28 +62,44 @@ export default function ChecadorScreen() {
   const [direccionActual, setDireccionActual] = useState<any>(null);
   const [isLoadingUbicacion, setIsLoadingUbicacion] = useState(true);
   const [flujoEstado, setFlujoEstado] = useState<flujoEstado>("initial");
-  const { isRegistering, registrar } = useChecador();
-  // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
-  //Obtener API
+  const [pendientesCount, setPendientesCount] = useState(0);
+  const [isOnline, setIsOnline] = useState(true);
+
   const API_BASE_URL = getApiUrl();
-  //Estilos Base
   const styles = getStyles(theme);
 
-  // eliminado de estado PRUEBAS
+  // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+  // INICIALIZACIÓN
+  // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 
+  // Limpiar estado para pruebas (eliminar en producción)
   useEffect(() => {
     console.log("ELIMINANDO ESTADO PARA PRUEBAS");
     AsyncStorage.clear();
   }, []);
 
-  //Obtener ubicacion dispositivo al renderizar pantalla
+  // Monitorear estado de red
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      const connected = state.isConnected && state.isInternetReachable;
+      setIsOnline(connected || false);
+
+      if (connected) {
+        console.log("📶 Conexión restablecida, verificando pendientes...");
+        actualizarContadorPendientes();
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Obtener ubicación al renderizar
   useEffect(() => {
     const obtenerUbicacionInicial = async () => {
       try {
         console.log("RENDERIZADO DE PANTALLA CHECADOR");
         console.log("Obteniendo ubicación inicial...");
 
-        //Obtener ubicación del dispositivo
         const ubicacionDispositivo = await obtenerUbicacion();
 
         if (!ubicacionDispositivo) {
@@ -82,21 +110,9 @@ export default function ChecadorScreen() {
         const { latitude, longitude } = ubicacionDispositivo;
         console.log(" Ubicación obtenida:", { latitude, longitude });
 
-        //Guarda ubicación
-        setUbicacionActual({
-          latitude,
-          longitude,
-        });
+        setUbicacionActual({ latitude, longitude });
 
-        //Obtener dirección
-        const direccion = await detalleUbicacion({
-          latitude,
-          longitude,
-        });
-
-        //console.log("Dirección obtenida:", direccion);
-
-        //Guardar dirección en estado
+        const direccion = await detalleUbicacion({ latitude, longitude });
         setDireccionActual(direccion);
       } catch (error) {
         console.error("Error al obtener ubicación inicial:", error);
@@ -106,9 +122,10 @@ export default function ChecadorScreen() {
     };
 
     obtenerUbicacionInicial();
+    actualizarContadorPendientes();
   }, []);
 
-  // Timer para actualizar la hora cada segundo
+  // Timer para actualizar la hora
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -125,7 +142,11 @@ export default function ChecadorScreen() {
   useEffect(() => {
     guardarEstadoFlujo(flujoEstado);
   }, [flujoEstado]);
+
   // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+  // FUNCIONES DE ESTADO
+  // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+
   const cargarEstadoFlujo = async () => {
     try {
       const saved = await AsyncStorage.getItem("@flujo_estado");
@@ -145,7 +166,20 @@ export default function ChecadorScreen() {
     }
   };
 
-  // Verificar si un botón debe estar habilitado
+  const actualizarContadorPendientes = async () => {
+    try {
+      const count = await checadasLocalDB.contarPendientes();
+      setPendientesCount(count);
+      console.log(`Checadas pendientes: ${count}`);
+    } catch (error) {
+      console.error("Error al contar pendientes:", error);
+    }
+  };
+
+  // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+  // FUNCIONES DE VALIDACIÓN
+  // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+
   const esBotonHabilitado = (type: CheckType): boolean => {
     switch (flujoEstado) {
       case "initial":
@@ -159,13 +193,11 @@ export default function ChecadorScreen() {
       case "jornada_terminada":
       case "bloqueado":
         return false;
-
       default:
         return false;
     }
   };
 
-  // Obtener el siguiente estado después de una checada
   const obtenerSiguienteEstado = (type: CheckType): flujoEstado => {
     switch (type) {
       case "inicio_jornada":
@@ -180,23 +212,296 @@ export default function ChecadorScreen() {
         return flujoEstado;
     }
   };
-  // Obtener el id del estado a enviar
-  const obtenerIdTipoChecada = (type: CheckType) => {
-    switch (type) {
-      case "inicio_jornada":
-        return 1;
-      case "inicio_comida":
-        return 2;
-      case "fin_comida":
-        return 3;
-      case "fin_jornada":
-        return 4;
-      default:
-        return 0;
+
+  const obtenerIdTipoChecada = (type: CheckType): number => {
+    return TIPO_CHECADA_MAP[type] || 0;
+  };
+
+  // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+  // FUNCIONES DE UBICACIÓN
+  // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+
+  const obtenerUbicacion = async () => {
+    try {
+      setLoadingText("Obteniendo Ubicación...");
+      setIsLoading(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      console.log("Status: ", status);
+
+      if (status !== "granted") {
+        Alert.alert(
+          "Error",
+          "Se necesitan permisos de ubicación para realizar checadas",
+        );
+        return null;
+      }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      setIsLoading(false);
+      return {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
+    } catch (error) {
+      Alert.alert("Error", "No se pudo obtener la ubicación");
+      return null;
     }
   };
 
-  // Formatear la hora
+  const detalleUbicacion = async (ubicacionDispositivo: {
+    latitude: number;
+    longitude: number;
+  }) => {
+    try {
+      const { latitude, longitude } = ubicacionDispositivo;
+
+      const reverseGeocodeResult = await Location.reverseGeocodeAsync({
+        latitude,
+        longitude,
+      });
+
+      if (reverseGeocodeResult && reverseGeocodeResult.length > 0) {
+        const direccion = reverseGeocodeResult[0];
+
+        const direccionFormateada = [
+          direccion.street,
+          direccion.district,
+          direccion.postalCode,
+          direccion.city || direccion.region,
+        ]
+          .filter(Boolean)
+          .join(", ");
+
+        return {
+          direccionCompleta: direccionFormateada,
+          calle: direccion.street || "",
+          colonia: direccion.district || "",
+          ciudad: direccion.city || direccion.region || "",
+          region: direccion.region || "",
+          codigoPostal: direccion.postalCode || "",
+          pais: direccion.country || "",
+          nombre: direccion.name || "",
+          raw: direccion,
+        };
+      } else {
+        console.warn("No se encontró dirección para estas coordenadas");
+        return null;
+      }
+    } catch (error) {
+      console.error("Error al obtener dirección:", error);
+      return null;
+    }
+  };
+
+  // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+  // FUNCIÓN PRINCIPAL: REGISTRAR CHECADA CON MODO OFFLINE
+  // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+
+  const handleCheck = async (type: CheckType) => {
+    // Validar ubicación
+    if (!ubicacionActual) {
+      Alert.alert(
+        "Error",
+        "No se pudo obtener la ubicación. Por favor, intenta nuevamente.",
+      );
+      return;
+    }
+
+    const idTipoChecada = obtenerIdTipoChecada(type);
+    const checkLabel =
+      checadaOpciones.find((opt) => opt.id === type)?.label || "";
+
+    // Alerta de confirmación
+    Alert.alert(
+      "Confirmar Checada",
+      `¿Estás seguro de registrar "${checkLabel}"?`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Confirmar",
+          onPress: async () => {
+            try {
+              setIsLoading(true);
+              setLoadingText("Procesando checada...");
+
+              const { latitude, longitude } = ubicacionActual;
+              const fechaRegistro = obtenerFechaLocal();
+              const usuarioId = 10; // DUMMY - Obtener del contexto de autenticación
+
+              // Preparar datos para guardar localmente
+              const checadaLocal = {
+                usuario_id: usuarioId,
+                tipo_checada: idTipoChecada,
+                latitud: latitude.toString(),
+                longitud: longitude.toString(),
+                fecha_registro: fechaRegistro,
+                sincronizado: false,
+                intentos_reintentos: 0,
+              };
+
+              // 1️⃣ GUARDAR LOCALMENTE SIEMPRE
+              const idLocal = await checadasLocalDB.guardar(checadaLocal);
+              console.log(`✅ Checada guardada localmente con ID: ${idLocal}`);
+
+              // Actualizar UI
+              const now = new Date();
+              setLastCheck({
+                type,
+                time: now.toLocaleTimeString(),
+              });
+
+              // Actualizar estado del flujo
+              const sigEstado = obtenerSiguienteEstado(type);
+              setFlujoEstado(sigEstado);
+
+              // 2️⃣ VERIFICAR CONEXIÓN
+              const netInfo = await NetInfo.fetch();
+              const tieneConexion =
+                netInfo.isConnected && netInfo.isInternetReachable;
+
+              if (tieneConexion) {
+                // 3️⃣ INTENTAR SINCRONIZAR INMEDIATAMENTE
+                try {
+                  setLoadingText("Sincronizando con servidor...");
+
+                  const payload = {
+                    usuario_id: usuarioId,
+                    tipo_checada: idTipoChecada,
+                    coordenadas_latitud: latitude.toString(),
+                    coordenadas_longitud: longitude.toString(),
+                    direccion_ubicacion:
+                      direccionActual?.direccionCompleta || "",
+                    fecha_registro: fechaRegistro,
+                  };
+
+                  const response = await fetch(
+                    `${API_BASE_URL}/api/v1/checador/registrar-checada-offline`,
+                    {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify(payload),
+                    },
+                  );
+
+                  if (response.ok) {
+                    const responseData = await response.json();
+                    const { body } = responseData;
+
+                    if (body?.status_code === STATUS_CODES.CODE_200) {
+                      // Marcar como sincronizada y mover a historial
+                      await checadasLocalDB.marcarSincronizada(idLocal);
+                      await checadasLocalDB.moverAHistorial(idLocal);
+                      console.log(
+                        `✅ Checada ${idLocal} sincronizada con el servidor`,
+                      );
+
+                      Alert.alert(
+                        "Éxito",
+                        `${checkLabel} registrada y sincronizada correctamente`,
+                      );
+                    } else {
+                      Alert.alert(
+                        "Éxito (Offline)",
+                        `${checkLabel} registrada localmente. Se sincronizará automáticamente.`,
+                      );
+                    }
+                  } else {
+                    // La API respondió con error, pero la checada está guardada localmente
+                    Alert.alert(
+                      "Éxito (Offline)",
+                      `${checkLabel} registrada localmente. Se sincronizará automáticamente.`,
+                    );
+                  }
+                } catch (syncError) {
+                  console.warn(
+                    "⚠️ Error al sincronizar, se guardará localmente:",
+                    syncError,
+                  );
+                  Alert.alert(
+                    "Éxito (Offline)",
+                    `${checkLabel} registrada localmente. Se sincronizará automáticamente.`,
+                  );
+                }
+              } else {
+                // 4️⃣ SIN CONEXIÓN - Solo guardado local
+                Alert.alert(
+                  "📴 Modo Offline",
+                  `${checkLabel} registrada localmente.\nSe sincronizará automáticamente cuando tengas conexión.`,
+                  [{ text: "OK" }],
+                );
+              }
+
+              // Actualizar contador de pendientes
+              await actualizarContadorPendientes();
+            } catch (error) {
+              console.error("Error en handleCheck:", error);
+              Alert.alert("Error", "No se pudo registrar la checada");
+            } finally {
+              setIsLoading(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+  // REFRESH
+  // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+
+  const onRefresh = async () => {
+    try {
+      setRefreshing(true);
+      setLoadingText("Refrescando datos...");
+
+      // Actualizar ubicación
+      const ubicacionDispositivo = await obtenerUbicacion();
+      if (ubicacionDispositivo) {
+        const { latitude, longitude } = ubicacionDispositivo;
+        setUbicacionActual({ latitude, longitude });
+        const direccion = await detalleUbicacion({ latitude, longitude });
+        setDireccionActual(direccion);
+      }
+
+      // Actualizar contador de pendientes
+      await actualizarContadorPendientes();
+
+      // Verificar conexión y sincronizar si es posible
+      const netInfo = await NetInfo.fetch();
+      if (netInfo.isConnected && netInfo.isInternetReachable) {
+        setLoadingText("Sincronizando pendientes...");
+        // Importar y ejecutar sincronización
+        const SyncService = (await import("../../services/Sincronizacion"))
+          .default;
+        const { sincronizadas, fallidas } =
+          await SyncService.sincronizarForzada();
+        console.log(
+          `✅ Sincronización forzada: ${sincronizadas} exitosas, ${fallidas} fallidas`,
+        );
+        await actualizarContadorPendientes();
+      }
+
+      setRefreshing(false);
+    } catch (error) {
+      console.error("Error en refresh:", error);
+      Alert.alert("Error", "No se pudo actualizar los datos");
+    } finally {
+      setRefreshing(false);
+      setLoadingText("Procesando checada...");
+    }
+  };
+
+  // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+  // RENDER
+  // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+
+  // Formateo de fechas
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString("es-MX", {
       hour: "2-digit",
@@ -205,7 +510,7 @@ export default function ChecadorScreen() {
       hour12: true,
     });
   };
-  //Formatear la fecha
+
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("es-MX", {
       weekday: "long",
@@ -246,218 +551,10 @@ export default function ChecadorScreen() {
     },
   ];
 
-  //Obtiene coordenadas de la ubicacion para procesar
-  const obtenerUbicacion = async () => {
-    try {
-      //Modal de carga
-      setLoadingText("Obteniendo Ubicación...");
-      setIsLoading(true);
-      const { status } = await Location.requestForegroundPermissionsAsync();
-
-      console.log("Status: ", status);
-
-      if (status !== "granted") {
-        Alert.alert(
-          "Error",
-          "Se necesitan permisos de ubicación para realizar checadas",
-        );
-        return null;
-      }
-
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-
-      setIsLoading(false);
-      return {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      };
-    } catch (error) {
-      Alert.alert("Error", "No se pudo obtener la ubicación");
-      return null;
-    }
-  };
-
-  //Obtenemos detalle de la ubicacion (direccion,calle,etc.)
-  const detalleUbicacion = async (ubicacionDispositivo: {
-    latitude: number;
-    longitude: number;
-  }) => {
-    try {
-      const { latitude, longitude } = ubicacionDispositivo;
-
-      const reverseGeocodeResult = await Location.reverseGeocodeAsync({
-        latitude,
-        longitude,
-      });
-
-      // Verificar si hay resultados
-      if (reverseGeocodeResult && reverseGeocodeResult.length > 0) {
-        const direccion = reverseGeocodeResult[0];
-
-        // Construir dirección formateada
-        const direccionFormateada = [
-          direccion.street,
-          direccion.district,
-          direccion.postalCode,
-          direccion.city || direccion.region,
-        ]
-          .filter(Boolean)
-          .join(", ");
-
-        // Retornar la dirección completa
-        return {
-          direccionCompleta: direccionFormateada,
-          calle: direccion.street || "",
-          colonia: direccion.district || "",
-          ciudad: direccion.city || direccion.region || "",
-          region: direccion.region || "",
-          codigoPostal: direccion.postalCode || "",
-          pais: direccion.country || "",
-          nombre: direccion.name || "",
-          raw: direccion, // Objeto con direccion completa por si se necesita
-        };
-      } else {
-        console.warn("No se encontró dirección para estas coordenadas");
-        return null;
-      }
-    } catch (error) {
-      console.error("Error al obtener dirección:", error);
-
-      // Manejo específico de errores
-      if (error instanceof Error) {
-        if (error.message.includes("network")) {
-          Alert.alert(
-            "Error de conexión",
-            "No hay conexión a internet para obtener la dirección",
-          );
-        } else {
-          Alert.alert(
-            "Error",
-            "No se pudo obtener la dirección de la ubicación",
-          );
-        }
-      }
-      return null;
-    }
-  };
-
-  //Validar Checada
-  const handleCheck = async (type: CheckType) => {
-    setLoadingText("Procesando checada...");
-    // Valida tener ubicacion
-    if (!ubicacionActual) {
-      Alert.alert(
-        "Error",
-        "No se pudo obtener la ubicación. Por favor, intenta nuevamente.",
-      );
-      return;
-    }
-    //Modal de carga
-    setIsLoading(true);
-
-    try {
-      const { latitude, longitude } = ubicacionActual;
-
-      // Registrar checada con los datos almacenados
-      await registrarChecada(type, latitude, longitude, direccionActual);
-    } catch (error) {
-      console.error("Error en handleCheck:", error);
-      Alert.alert("Error", "Error al registrar checada");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const registrarChecada = async (
-    type: CheckType,
-    latitude: number,
-    longitude: number,
-    direccionUbicacion: any,
-  ) => {
-    setIsLoading(false);
-    //Alerta de confirmacion
-    const idTipoChecada = obtenerIdTipoChecada(type);
-
-    const checkLabel =
-      checadaOpciones.find((opt) => opt.id === type)?.label || "";
-    Alert.alert(
-      "Confirmar Checada",
-      `¿Estás seguro de registrar "${checkLabel}"?`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Confirmar",
-          onPress: async () => {
-            const payload = {
-              usuario_id: 10, // DUMMY
-              tipo_checada: obtenerIdTipoChecada(type),
-              ubicacion: {
-                latitud: latitude,
-                longitud: longitude,
-                direccionCompleta: direccionActual,
-              },
-            };
-
-            // Llamada API
-            const resultado = await registrar(payload);
-
-            //Validamos resultado API
-            if (resultado.success) {
-              const now = new Date();
-              setLastCheck({ type, time: now.toLocaleTimeString() });
-              setFlujoEstado(obtenerSiguienteEstado(type));
-              Alert.alert(
-                "Éxito",
-                `${checkLabel} registrada correctamente.\n\nNota: ${resultado.message}`,
-              );
-            } else {
-              Alert.alert("Error", resultado.message);
-            }
-          },
-        },
-      ],
-    );
-  };
-
-  const onRefresh = async () => {
-    try {
-      //Scroll de refresh de pantalla
-      setRefreshing(true);
-      setLoadingText("Refrescando datos...");
-      const ubicacionDispositivo = await obtenerUbicacion();
-      if (ubicacionDispositivo) {
-        const { latitude, longitude } = ubicacionDispositivo;
-
-        // Actualizar estado de ubicación
-        setUbicacionActual({ latitude, longitude });
-
-        // Recargar dirección
-        const direccion = await detalleUbicacion({ latitude, longitude });
-        setDireccionActual(direccion);
-      } else {
-        console.warn("⚠️ No se pudo obtener ubicación en refresh");
-      }
-      setRefreshing(false);
-    } catch (error) {
-      console.error("Error en refresh:", error);
-      Alert.alert("Error", "No se pudo actualizar los datos");
-    } finally {
-      setRefreshing(false);
-      setLoadingText("Procesando checada...");
-    }
-  };
-
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.background }]}
     >
-      {/* <StatusBar
-        barStyle={isDarkMode ? "light-content" : "dark-content"}
-        backgroundColor={theme.background}
-      /> */}
-
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
@@ -478,6 +575,31 @@ export default function ChecadorScreen() {
             Registro de asistencia
           </Text>
         </View>
+
+        {/* Indicador de estado offline/pendientes */}
+        {!isOnline && (
+          <View
+            style={[styles.offlineIndicator, { backgroundColor: "#FF9800" }]}
+          >
+            <Ionicons name="wifi-outline" size={16} color="#FFF" />
+            <Text style={styles.offlineText}>Sin conexión - Modo offline</Text>
+          </View>
+        )}
+
+        {pendientesCount > 0 && isOnline && (
+          <TouchableOpacity
+            style={[
+              styles.pendientesIndicator,
+              { backgroundColor: theme.primaryLight },
+            ]}
+            onPress={onRefresh}
+          >
+            <Ionicons name="sync-outline" size={16} color={theme.primary} />
+            <Text style={[styles.pendientesText, { color: theme.primary }]}>
+              {pendientesCount} checadas pendientes de sincronizar
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Última checada */}
         {lastCheck && (
@@ -503,12 +625,9 @@ export default function ChecadorScreen() {
         <View
           style={[styles.timerContainer, { backgroundColor: theme.surface }]}
         >
-          {/* Hora actual */}
           <Text style={[styles.currentTime, { color: theme.text }]}>
             {formatTime(currentTime)}
           </Text>
-
-          {/* Fecha actual */}
           <Text style={[styles.currentDate, { color: theme.textSecondary }]}>
             {formatDate(currentTime)}
           </Text>
@@ -539,8 +658,8 @@ export default function ChecadorScreen() {
                   {
                     backgroundColor: estaHabilitado
                       ? option.bgColor
-                      : "#f0f0f0",
-                    borderColor: estaHabilitado ? option.color : "#ddd",
+                      : theme.surface,
+                    borderColor: estaHabilitado ? option.color : theme.border,
                     borderWidth: 1.5,
                     opacity: estaHabilitado ? 1 : 0.5,
                   },
@@ -554,20 +673,22 @@ export default function ChecadorScreen() {
                     {
                       backgroundColor: estaHabilitado
                         ? option.color + "20"
-                        : "#e0e0e0",
+                        : theme.border,
                     },
                   ]}
                 >
                   <Ionicons
                     name={option.icon as any}
                     size={32}
-                    color={estaHabilitado ? option.color : "#999"}
+                    color={estaHabilitado ? option.color : theme.textTertiary}
                   />
                 </View>
                 <Text
                   style={[
                     styles.checkLabel,
-                    { color: estaHabilitado ? option.color : "#999" },
+                    {
+                      color: estaHabilitado ? option.color : theme.textTertiary,
+                    },
                   ]}
                 >
                   {option.label}
@@ -580,14 +701,18 @@ export default function ChecadorScreen() {
 
       {/* Modal de carga */}
       <LoadingOverlay
-        visible={isRegistering || refreshing || isLoadingUbicacion}
+        visible={isLoading || refreshing}
         text={loadingText}
         iconName={refreshing ? "sync-outline" : "sync-outline"}
       />
     </SafeAreaView>
   );
 }
-//Estilos de la pantallas
+
+// =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+// ESTILOS
+// =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+
 const getStyles = (colors: any) =>
   StyleSheet.create({
     container: {
@@ -611,6 +736,35 @@ const getStyles = (colors: any) =>
       fontSize: 14,
       color: colors.textSecondary,
       marginTop: 4,
+    },
+    offlineIndicator: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 10,
+      borderRadius: 8,
+      marginBottom: 12,
+      justifyContent: "center",
+    },
+    offlineText: {
+      color: "#FFF",
+      fontSize: 13,
+      fontWeight: "500",
+      marginLeft: 8,
+    },
+    pendientesIndicator: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 10,
+      borderRadius: 8,
+      marginBottom: 12,
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    pendientesText: {
+      fontSize: 13,
+      fontWeight: "500",
+      marginLeft: 8,
     },
     lastCheckContainer: {
       flexDirection: "row",
@@ -652,7 +806,6 @@ const getStyles = (colors: any) =>
       borderRadius: 16,
       marginBottom: 16,
       alignItems: "center",
-      backgroundColor: "rgba(255,255,255,0.03)",
     },
     iconContainer: {
       width: 60,
@@ -666,24 +819,6 @@ const getStyles = (colors: any) =>
       fontSize: 14,
       fontWeight: "600",
       textAlign: "center",
-    },
-    loadingOverlay: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: "rgba(0,0,0,0.7)",
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    loadingContainer: {
-      padding: 30,
-      borderRadius: 20,
-      alignItems: "center",
-      borderWidth: 1,
-      borderColor: "rgba(74, 144, 226, 0.3)",
-    },
-    loadingText: {
-      color: colors.text,
-      marginTop: 12,
-      fontSize: 16,
     },
     timerContainer: {
       alignItems: "center",

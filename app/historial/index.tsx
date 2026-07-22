@@ -1,13 +1,12 @@
 // app/historial/index.tsx
+import { obtenerFechaLocal } from "@/helpers/helpers";
 import { Ionicons } from "@expo/vector-icons";
-import dayjs from "dayjs";
-import timezone from "dayjs/plugin/timezone";
-import utc from "dayjs/plugin/utc";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { getApiUrl } from "../../config/configApiURL";
-import { STATUS_CODES } from "../../constants/messages";
 
+import { useHistorialChecadas } from "@/hooks/useHistorialChecadas";
+import { HistorialItemResponse } from "@/services/historialService";
 import {
   ActivityIndicator,
   Alert,
@@ -21,9 +20,6 @@ import {
   View,
 } from "react-native";
 import { useTheme } from "../context/ThemeContext";
-//Ajuste zona horaria
-dayjs.extend(utc);
-dayjs.extend(timezone);
 
 const checadaOpciones = [
   {
@@ -62,20 +58,6 @@ type CheckType =
   | "fin_comida"
   | "fin_jornada";
 
-// Interfaz para los datos del servidor
-interface HistorialItem {
-  id_usuario: number;
-  id_jornada: number;
-  id_jornada_detalle: number;
-  id_tipo_checada: number;
-  tipo_checada_descripcion: string;
-  id_tipo_puntualidad: number;
-  coordenadas_latitud: string;
-  coordenadas_longitud: string;
-  direccion_ubicacion: string;
-  fecha_registro: string;
-}
-
 // Interfaz para los datos mapeados que usa la UI
 interface HistorialUIItem {
   id: number;
@@ -97,14 +79,19 @@ export default function HistorialScreen() {
   const [selectedDateType, setSelectedDateType] = useState<"inicio" | "fin">(
     "inicio",
   );
-  const [isLoading, setIsLoading] = useState(false);
+  const {
+    isLoading,
+    data: rawHistorialData,
+    obtenerHistorial,
+    error,
+  } = useHistorialChecadas();
   const [historialData, setHistorialData] = useState<HistorialUIItem[]>([]);
 
   const API_BASE_URL = getApiUrl();
 
-  // Función para mapear datos del servidor al formato de la UI
+  // Mapeo de datos de servidor
   const mapearDatosHistorial = (
-    dataFromServer: HistorialItem[],
+    dataFromServer: HistorialItemResponse[],
   ): HistorialUIItem[] => {
     if (!dataFromServer || dataFromServer.length === 0) return [];
 
@@ -121,86 +108,47 @@ export default function HistorialScreen() {
 
   // Cargar datos iniciales al montar el componente
   useEffect(() => {
-    const usuarioId = 10;
+    const usuarioId = 10; //DUMMY
     const fechaActual = obtenerFechaLocal();
+
     // Establecer en filtros
     setFechaInicio(fechaActual);
     setFechaFin(fechaActual);
-    console.log("fechaActual ", fechaActual);
 
-    // Cargar historial
-    obtenerHistorialChecadas(usuarioId, fechaActual, fechaActual);
+    // Obtener historial de checadas
+    obtenerHistorial({
+      usuario_id: usuarioId,
+      rango_fecha_inicio: fechaActual,
+      rango_fecha_fin: fechaActual,
+    });
   }, []);
 
-  // Obtener historial de checadas
-  const obtenerHistorialChecadas = async (
-    idUsuario: number,
-    fecInicio: string,
-    fecFinal: string,
-  ) => {
-    setIsLoading(true);
-    try {
-      // Construir URL con query parameters
-      const url = new URL(`${API_BASE_URL}/api/v1/checador/historial-checadas`);
-      url.searchParams.append("usuario_id", idUsuario.toString());
-      url.searchParams.append("rango_fecha_inicio", fecInicio);
-      url.searchParams.append("rango_fecha_fin", fecFinal);
+  //solo se recalcula si cambian los datos crudos o las fechas
+  const filteredAndMappedData = useMemo(() => {
+    const datosMapeados = mapearDatosHistorial(rawHistorialData);
 
-      console.log("URL:", url.toString());
+    if (!fechaInicio && !fechaFin) return datosMapeados;
 
-      // Peticion API
-      const response = await fetch(url.toString(), {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+    const parseLocalDate = (fechaStr: string, endOfDay = false) => {
+      const [year, month, day] = fechaStr.split("-").map(Number);
+      return endOfDay
+        ? new Date(year, month - 1, day, 23, 59, 59, 999)
+        : new Date(year, month - 1, day, 0, 0, 0, 0);
+    };
 
-      const responseData = await response.json();
-      console.log(
-        "Respuesta del servidor:",
-        JSON.stringify(responseData, null, 2),
-      );
-
-      // Extraer datos de la respuesta
-      const { body } = responseData;
-      const statusCode = body?.status_code;
-      const message = body?.message;
-      const data = body?.data || [];
-
-      if (statusCode === STATUS_CODES.CODE_200) {
-        const datosMapeados = mapearDatosHistorial(data);
-        setHistorialData(datosMapeados);
-        console.log(`Se encontraron ${datosMapeados.length} registros`);
-        setIsLoading(false);
-      } else {
-        setIsLoading(false);
-        const mensajeError = message || "Error al obtener historial";
-        Alert.alert("Error", mensajeError);
+    return datosMapeados.filter((item) => {
+      const itemDate = new Date(item.fecha);
+      if (fechaInicio && fechaFin) {
+        return (
+          itemDate >= parseLocalDate(fechaInicio) &&
+          itemDate <= parseLocalDate(fechaFin, true)
+        );
       }
-    } catch (error) {
-      setIsLoading(false);
-      console.error("Error en la petición:", error);
-      let mensajeError = "Error al obtener historial";
-      if (error instanceof Error) {
-        if (error.message.includes("Network request failed")) {
-          mensajeError =
-            "No se pudo conectar al servidor. Verifica tu conexión.";
-        } else {
-          mensajeError = error.message;
-        }
-      }
-      Alert.alert("Error", mensajeError);
-    }
-  };
-
-  // obtener fecha actual
-  const obtenerFechaLocal = (diasOffset: number = 0): string => {
-    return dayjs()
-      .tz("America/Mexico_City")
-      .add(diasOffset, "day")
-      .format("YYYY-MM-DD");
-  };
+      if (fechaInicio) return itemDate >= parseLocalDate(fechaInicio);
+      if (fechaFin) return itemDate <= parseLocalDate(fechaFin, true);
+      return true;
+    });
+  }, [rawHistorialData, fechaInicio, fechaFin]);
 
   // formatear fecha: "DIA-MES-AÑO"
   const formatearFecha = (fechaISO: string) => {
@@ -267,29 +215,25 @@ export default function HistorialScreen() {
   //Seleccion de filtros
   const handleFechaHoy = () => {
     const today = obtenerFechaLocal(0);
-    console.log("Seleccionando HOY:", today);
     actualizarFecha(today);
   };
 
   const handleFechaAyer = () => {
     const fecAyer = obtenerFechaLocal(-1);
-    console.log("Fecha AYER: ", fecAyer);
     actualizarFecha(fecAyer);
   };
 
   const handleFecha7Dias = () => {
     const fec7Dias = obtenerFechaLocal(-7);
-    console.log("Fecha 7 dias: ", fec7Dias);
     actualizarFecha(fec7Dias);
   };
 
   const handleFecha30Dias = () => {
     const fec30Dias = obtenerFechaLocal(-30);
-    console.log("Fecha 30 dias: ", fec30Dias);
     actualizarFecha(fec30Dias);
   };
 
-  // aux fechas
+  // Aux fechas
   const actualizarFecha = (date: string) => {
     if (selectedDateType === "inicio") {
       setFechaInicio(date);
@@ -307,12 +251,27 @@ export default function HistorialScreen() {
 
   // Aplicar filtros
   const aplicarFiltros = () => {
-    if (fechaInicio && fechaFin) {
-      const usuarioId = 10; // Obtener del contexto
-      obtenerHistorialChecadas(usuarioId, fechaInicio, fechaFin);
-    } else {
+    if (!fechaInicio || !fechaFin) {
       Alert.alert("Información", "Selecciona ambas fechas para filtrar");
+      return;
     }
+
+    if (fechaInicio > fechaFin) {
+      console.log("FECHA INICIO ES MENOR A INICIO");
+      Alert.alert(
+        "Información",
+        "La fecha de inicio debe ser menor o igual a la fecha final.",
+      );
+      limpiarFiltros();
+      return;
+    }
+
+    const usuarioId = 10; //DUMMY
+    obtenerHistorial({
+      usuario_id: usuarioId,
+      rango_fecha_inicio: fechaInicio,
+      rango_fecha_fin: fechaFin,
+    });
   };
 
   return (
@@ -401,7 +360,7 @@ export default function HistorialScreen() {
           </TouchableOpacity>
 
           <Text style={[styles.contadorText, { color: theme.textSecondary }]}>
-            {filteredData.length} registros
+            {filteredAndMappedData.length} registros
           </Text>
         </View>
       </View>
@@ -420,8 +379,8 @@ export default function HistorialScreen() {
           contentContainerStyle={styles.scrollContent}
         >
           {/* Tarjetas de historial */}
-          {filteredData.length > 0 ? (
-            filteredData.map((item) => {
+          {filteredAndMappedData.length > 0 ? (
+            filteredAndMappedData.map((item) => {
               const tipoInfo = getTipoInfo(item.tipo);
               const fechaFormateada = formatearFecha(item.fecha);
               const horaFormateada = formatearTiempo(item.fecha);
