@@ -57,3 +57,6 @@ npx expo install expo-location
 
 Iconos
 https://icons.expo.fyi/Index
+
+--horarios
+npm install dayjs

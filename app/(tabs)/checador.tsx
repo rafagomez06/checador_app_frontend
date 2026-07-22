@@ -16,7 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { getApiUrl } from "../../config/constansts";
+import { getApiUrl } from "../../config/configApiURL";
 import { useTheme } from "../context/ThemeContext";
 //Tipos checadas
 type CheckType =
@@ -304,10 +304,8 @@ export default function ChecadorScreen() {
         const direccionFormateada = [
           direccion.street,
           direccion.district,
-          direccion.city || direccion.region,
-          direccion.country,
           direccion.postalCode,
-          direccion.country,
+          direccion.city || direccion.region,
         ]
           .filter(Boolean)
           .join(", ");
@@ -403,7 +401,7 @@ export default function ChecadorScreen() {
 
               // Datos para el backend
               const payload = {
-                usuario_id: 31,
+                usuario_id: 10, //DUMMY
                 tipo_checada: idTipoChecada,
                 ubicacion: {
                   latitud: latitude,
@@ -414,10 +412,6 @@ export default function ChecadorScreen() {
 
               console.log(JSON.stringify(payload, null, 2));
 
-              // console.log(
-              //   "API CONSUMO: ",
-              //   `${API_BASE_URL}/api/v1/checador/registrar-checada`,
-              // );
               // Peticion a la API
               const response = await fetch(
                 `${API_BASE_URL}/api/v1/checador/registrar-checada`,

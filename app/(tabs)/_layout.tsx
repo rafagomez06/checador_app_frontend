@@ -36,7 +36,7 @@ export default function TabsLayout() {
         },
       }}
     >
-      {/* Tab 1: Checador */}
+      {/* Tab Checador */}
       <Tabs.Screen
         name="checador"
         options={{
@@ -51,7 +51,7 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* Tab 2: Perfil */}
+      {/* Tab Perfil */}
       <Tabs.Screen
         name="perfil"
         options={{
@@ -65,21 +65,6 @@ export default function TabsLayout() {
           ),
         }}
       />
-
-      {/* Tab 3: Historial (OPCIONAL - Ejemplo de cómo agregar más tabs) */}
-      {/* <Tabs.Screen
-        name="historial"
-        options={{
-          title: "Historial",
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
-              name={focused ? "calendar" : "calendar-outline"}
-              size={size}
-              color={color}
-            />
-          ),
-        }}
-      /> */}
     </Tabs>
   );
 }

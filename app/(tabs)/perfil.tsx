@@ -121,6 +121,9 @@ export default function PerfilScreen() {
                 borderColor: theme.border,
               },
             ]}
+            onPress={() => {
+              router.push("/historial");
+            }}
           >
             <View
               style={[
